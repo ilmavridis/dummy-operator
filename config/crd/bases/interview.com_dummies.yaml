@@ -42,6 +42,12 @@ spec:
             type: object
           status:
             description: DummyStatus defines the observed state of Dummy
+            properties:
+              specEcho:
+                description: SpecEcho contains the value of the spec.message
+                type: string
+            required:
+            - specEcho
             type: object
         type: object
     served: true
