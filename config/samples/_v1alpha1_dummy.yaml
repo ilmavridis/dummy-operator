@@ -1,0 +1,6 @@
+apiVersion: interview.com/v1alpha1
+kind: Dummy
+metadata:
+  name: dummy-sample
+spec:
+  # TODO(user): Add fields here
