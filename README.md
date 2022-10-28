@@ -8,7 +8,7 @@ This operator performs two core functions:
     - a spec field which contains a string subfield called "message".
     - a status field which contains a string subfield called "specEcho".
     - a status field that tracks the status of the Pod associated with the Dummy called "podStatus".
-<br>
+
 2. Creates a custom controller for resources of kind Dummy. <br>The controller:
     - logs the name, namespace and message of each Dummy.
     - copies the value of spec.message to status.specEcho.
