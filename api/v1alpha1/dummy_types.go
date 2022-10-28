@@ -35,6 +35,8 @@ type DummyStatus struct {
 
 	// SpecEcho contains the value of the spec.message
 	SpecEcho string `json:"specEcho"`
+	// PodStatus contains the status of the pod created by Dummy
+	PodStatus string `json:"PodStatus"`
 }
 
 //+kubebuilder:object:root=true
