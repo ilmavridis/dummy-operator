@@ -27,12 +27,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/go-logr/logr"
 	"github.com/ilmavridis/dummy-operator/api/v1alpha1"
 	interviewcomv1alpha1 "github.com/ilmavridis/dummy-operator/api/v1alpha1"
 )
@@ -62,25 +64,11 @@ func (r *DummyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	// Check if the Dummy should be deleted
 	if err != nil {
-		if errors.IsNotFound(err) { // Dummy resource not found. It's ok since the dummy object should be deleted
+		if errors.IsNotFound(err) {
 
-			// In case there is no parent/child relationship established between the Dummy and its Pod,
-			// the Pod will not be automatically deleted by K8s when its Dummy is deleted.
-			// Check if there is a Pod to delete
-			err := r.Get(ctx, req.NamespacedName, existingPod)
-			if err != nil {
-				if errors.IsNotFound(err) { // No Pod found, no need to do anything
-					return ctrl.Result{}, nil
-				} else {
-					log.Error(err, "Failed to get Pod")
-					return ctrl.Result{}, err
-				}
-			} else {
-				r.Delete(ctx, existingPod) // Pod found, delete it
-				if existingPod.DeletionTimestamp != nil {
-					log.Info("Dummy not found, its Pod is deleted")
-				}
-			}
+			// Dummy resource not found. It's ok since the dummy object should be deleted
+			log.Info("No Dummy resource found. It's ok since object must be deleted")
+			return ctrl.Result{}, nil
 
 		} else {
 			log.Error(err, "Failed to get Dummy")
@@ -89,6 +77,7 @@ func (r *DummyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	} else {
 
+		dummyFinalizer := "interview.com/finalizer"
 		dummyName := dummy.Name
 		dummyNamespace := dummy.Namespace
 		dummyMessage := dummy.Spec.Message
@@ -106,7 +95,6 @@ func (r *DummyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		}
 
 		// Check if the Pod already exists. If not, create a new one
-		existingPod := &corev1.Pod{}
 		err = r.Get(ctx, types.NamespacedName{Name: dummyName, Namespace: dummyNamespace}, existingPod)
 		if err != nil && errors.IsNotFound(err) {
 			// Define a new Pod
@@ -138,6 +126,42 @@ func (r *DummyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 			}
 
 		} else if err == nil { // Pod already exists
+
+			beingDeleted := dummy.GetDeletionTimestamp()
+			if beingDeleted != nil {
+				if controllerutil.ContainsFinalizer(dummy, dummyFinalizer) {
+					// Run the finalization logic
+					if err := r.finalizeDummy(ctx, existingPod, log); err != nil {
+						return ctrl.Result{}, err
+					}
+
+					// Remove the finalizer
+					controllerutil.RemoveFinalizer(dummy, dummyFinalizer)
+					err := r.Update(ctx, dummy)
+					if err != nil {
+						log.Error(err, "Failed to update Dummy")
+						return ctrl.Result{}, err
+					}
+				}
+				return ctrl.Result{}, nil
+			}
+
+			// Check if the Pod has no owner
+			// In case there is no parent/child relationship established between the Dummy and its Pod,
+			// the Pod will not be automatically deleted by K8s when its Dummy is deleted.
+			// In this case we use a finalizer
+			if len(existingPod.GetOwnerReferences()) == 0 && !controllerutil.ContainsFinalizer(dummy, dummyFinalizer) {
+				log.Info("There is no relationship established between the Dummy and its Pod")
+
+				// Add finalizer to this Dummy
+				controllerutil.AddFinalizer(dummy, dummyFinalizer)
+				err = r.Update(ctx, dummy)
+				if err != nil {
+					log.Error(err, "Failed to add finalizer")
+					return ctrl.Result{}, err
+				}
+				log.Info("Added finalizer")
+			}
 
 			// If the Pod's status is changed, update the Dummy's PodStatus field accordingly
 			if string(existingPod.Status.Phase) != dummy.Status.PodStatus {
@@ -176,7 +200,19 @@ func (r *DummyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 		}
 	}
+
 	return ctrl.Result{}, nil
+}
+
+// Finalize Dummy logic
+func (r *DummyReconciler) finalizeDummy(ctx context.Context, existingPod *corev1.Pod, log logr.Logger) error {
+	err := r.Delete(ctx, existingPod)
+	if err != nil {
+		log.Error(err, "Failed to delete Pod not owned by Dummy")
+	}
+
+	log.Info("Successfully finalized Dummy")
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

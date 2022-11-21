@@ -265,10 +265,11 @@ dummy.interview.com "dummy1" deleted
 
 ## Scenario B 
 In this case the Pod already exists but with a different image
-1. Create a dummy
-1. Delete the pod 
+1. Create a Pod
+1. Create a Dummy
+1. Delete the Pod 
 2. Change Pod's image
-3. Delete dummy
+3. Delete Dummy
 
 
 ### 1. Suppose the Pod already exists but its image is redis and not nginx 
@@ -326,11 +327,19 @@ EOF
     $ kubectl get pod dummy1 -o jsonpath="{..image}"
     nginx docker.io/library/nginx:latest
     ```
+- A finalizer was added to the Dummy to implement cleanup logic because there is no relationship between the Dummy and its Pod.
+    ```sh
+    $ kubectl get dummy -o yaml | grep -i finalizer
+    finalizers:
+    - interview.com/finalizer
+    ```
 
 - Logs
     ```yaml
-    1.6669654339062576e+09  INFO    Update Pod's image      {"controller": "dummy", "controllerGroup": "interview.com", "controllerKind": "Dummy", "dummy": {"name":"dummy1","namespace":"default"}, "namespace": "default", "name": "dummy1", "reconcileID": "5832d0e5-a1bd-4102-9d25-9b62b2332981"}
-    1.6669654339134736e+09  INFO    A Dummy and its Pod have been successfully deployed     {"controller": "dummy", "controllerGroup": "interview.com", "controllerKind": "Dummy", "dummy": {"name":"dummy1","namespace":"default"}, "namespace": "default", "name": "dummy1", "reconcileID": "8925506a-4274-41b2-a0a3-aa7d04f46076", "name": "dummy1", "namespace": "default", "message": "I'm just a dummy"}
+    1.669033144666449e+09   INFO    There is no relationship established between the Dummy and its Pod      {"controller": "dummy", "controllerGroup": "interview.com", "controllerKind": "Dummy", "dummy": {"name":"dummy1","namespace":"default"}, "namespace": "default", "name": "dummy1", "reconcileID": "42092074-d2cc-4cd8-bd80-771285267bab"}
+    1.6690331446719627e+09  INFO    Added finalizer {"controller": "dummy", "controllerGroup": "interview.com", "controllerKind": "Dummy", "dummy": {"name":"dummy1","namespace":"default"}, "namespace": "default", "name": "dummy1", "reconcileID": "42092074-d2cc-4cd8-bd80-771285267bab"}
+    1.6690331446768754e+09  INFO    Update Pod's image      {"controller": "dummy", "controllerGroup": "interview.com", "controllerKind": "Dummy", "dummy": {"name":"dummy1","namespace":"default"}, "namespace": "default", "name": "dummy1", "reconcileID": "42092074-d2cc-4cd8-bd80-771285267bab"}
+    1.6690331446833532e+09  INFO    A Dummy and its Pod have been successfully deployed     {"controller": "dummy", "controllerGroup": "interview.com", "controllerKind": "Dummy", "dummy": {"name":"dummy1","namespace":"default"}, "namespace": "default", "name": "dummy1", "reconcileID": "87bfd552-526c-4ba0-a604-393bace82395", "name": "dummy1", "namespace": "default", "message": "I'm just a dummy"}
     ```
 
 #### 4. A user deletes the Dummy
